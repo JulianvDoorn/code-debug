@@ -269,6 +269,16 @@ export class MI2 extends EventEmitter implements IBackend {
 			cmds.push(this.sendCommand("enable-pretty-printing"));
 		if (this.frameFilters)
 			cmds.push(this.sendCommand("enable-frame-filters"));
+		if (this.multiProcess) {
+			cmds.push(
+			  this.sendCommand("gdb-set follow-fork-mode parent"),
+				this.sendCommand("gdb-set detach-on-fork off"),
+				this.sendCommand("gdb-set non-stop on"),
+				this.sendCommand("gdb-set schedule-multiple on"),
+
+				this.sendCommand("interpreter-exec console \"handle SIGSYS nostop noprint\"")
+			);
+		}
 		for (const cmd of this.extraCommands) {
 			cmds.push(this.sendCommand(cmd));
 		}
@@ -462,7 +472,7 @@ export class MI2 extends EventEmitter implements IBackend {
 												this.emit("exited-normally", parsed);
 												break;
 											case "exited": // exit with error code != 0
-												this.log("stderr", "Program exited with code " + parsed.record("exit-code"));
+												this.log("stderr", "Inferior exited with code " + parsed.record("exit-code"));
 												this.emit("exited-normally", parsed);
 												break;
 												// case "exited-signalled":	// consider handling that explicit possible
@@ -483,6 +493,10 @@ export class MI2 extends EventEmitter implements IBackend {
 									this.emit("thread-created", parsed);
 								} else if (record.asyncClass === "thread-exited") {
 									this.emit("thread-exited", parsed);
+								} else if (record.asyncClass == "thread-group-started") {
+									this.emit("thread-group-started", parsed);
+								} else if (record.asyncClass == "thread-group-exited") {
+									this.emit("thread-group-exited", parsed);
 								}
 							}
 						}
@@ -546,21 +560,21 @@ export class MI2 extends EventEmitter implements IBackend {
 		this.sendRaw("-target-detach");
 	}
 
-	interrupt(): Thenable<boolean> {
+	interrupt(all: boolean = true): Thenable<boolean> {
 		if (trace)
 			this.log("stderr", "interrupt");
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-interrupt").then((info) => {
+			this.sendCommand("exec-interrupt" + (all ? " --all" : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "done");
 			}, reject);
 		});
 	}
 
-	continue(reverse: boolean = false): Thenable<boolean> {
+	continue(reverse: boolean = false, all: boolean = true): Thenable<boolean> {
 		if (trace)
 			this.log("stderr", "continue");
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "")).then((info) => {
+			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "") + (all ? " --all" : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});
@@ -1023,6 +1037,7 @@ export class MI2 extends EventEmitter implements IBackend {
 
 	prettyPrint: boolean = true;
 	frameFilters: boolean = true;
+	multiProcess: boolean = false;
 	printCalls: boolean;
 	debugOutput: boolean;
 	features: string[];

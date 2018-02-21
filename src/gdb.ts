@@ -19,6 +19,7 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
 	valuesFormatting: ValuesFormattingMode;
 	frameFilters: boolean;
 	printCalls: boolean;
+	multiProcess: boolean;
 	showDevDebugOutput: boolean;
 	registerLimit: string;
 }
@@ -39,6 +40,7 @@ export interface AttachRequestArguments extends DebugProtocol.AttachRequestArgum
 	valuesFormatting: ValuesFormattingMode;
 	frameFilters: boolean;
 	printCalls: boolean;
+	multiProcess: boolean;
 	showDevDebugOutput: boolean;
 	registerLimit: string;
 }
@@ -75,6 +77,7 @@ class GDBDebugSession extends MI2DebugSession {
 		this.setValuesFormattingMode(args.valuesFormatting);
 		this.miDebugger.frameFilters = !!args.frameFilters;
 		this.miDebugger.printCalls = !!args.printCalls;
+		this.miDebugger.multiProcess = !!args.multiProcess;
 		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
 		this.stopAtEntry = args.stopAtEntry;
 		this.miDebugger.registerLimit = args.registerLimit ?? "";
@@ -121,6 +124,7 @@ class GDBDebugSession extends MI2DebugSession {
 		this.setValuesFormattingMode(args.valuesFormatting);
 		this.miDebugger.frameFilters = !!args.frameFilters;
 		this.miDebugger.printCalls = !!args.printCalls;
+		this.miDebugger.multiProcess = !!args.multiProcess;
 		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
 		this.stopAtEntry = args.stopAtEntry;
 		this.miDebugger.registerLimit = args.registerLimit ?? "";

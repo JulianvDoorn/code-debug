@@ -44,6 +44,8 @@ export class MI2DebugSession extends DebugSession {
 	protected miDebugger: MI2;
 	protected commandServer: net.Server;
 	protected serverPath: string;
+	protected threadGroupPids = new Map<string, string>();
+	protected threadToPid = new Map<number, string>();
 
 	public constructor(debuggerLinesStartAt1: boolean, isServer: boolean = false) {
 		super(debuggerLinesStartAt1, isServer);
@@ -64,6 +66,9 @@ export class MI2DebugSession extends DebugSession {
 		this.miDebugger.on("thread-created", this.threadCreatedEvent.bind(this));
 		this.miDebugger.on("thread-exited", this.threadExitedEvent.bind(this));
 		this.miDebugger.once("debug-ready", (() => this.sendEvent(new InitializedEvent())));
+		this.miDebugger.on("thread-group-started", this.threadGroupStartedEvent.bind(this));
+		this.miDebugger.on("thread-group-exited", this.threadGroupExitedEvent.bind(this));
+		this.sendEvent(new InitializedEvent());
 		try {
 			this.commandServer = net.createServer(c => {
 				c.on("data", data => {
@@ -164,22 +169,41 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected threadCreatedEvent(info: MINode) {
-		this.sendEvent(new ThreadEvent("started", info.record("id")));
+		let threadId = parseInt(info.record("id"), 10);
+
+		let threadPid = this.threadGroupPids.get(info.record("group-id"));
+		this.threadToPid.set(threadId, threadPid);
+
+		this.sendEvent(new ThreadEvent("started", threadId));
 	}
 
 	protected threadExitedEvent(info: MINode) {
-		this.sendEvent(new ThreadEvent("exited", info.record("id")));
+		let threadId = parseInt(info.record("id"), 10);
+
+		this.threadToPid.delete(info.record("group-id"));
+
+		this.sendEvent(new ThreadEvent("exited", threadId));
 	}
 
-	protected quitEvent() {
-		this.quit = true;
-		this.sendEvent(new TerminatedEvent());
+	protected threadGroupStartedEvent(info: MINode) {
+		this.threadGroupPids.set(info.record("id"), info.record("pid"));
+	}
 
-		if (this.serverPath)
-			fs.unlink(this.serverPath, (err) => {
+	protected threadGroupExitedEvent(info: MINode) {
+		this.threadGroupPids.delete(info.record("id"));
+	}
+
+	protected quitEvent(info?: MINode) {
+		if (this.threadGroupPids.size == 0) {
+			this.quit = true;
+			this.sendEvent(new TerminatedEvent());
+
+			if (this.serverPath)
+				fs.unlink(this.serverPath, (err) => {
 				// eslint-disable-next-line no-console
 				console.error("Failed to unlink debug server");
-			});
+				});
+		}
 	}
 
 	protected launchError(err: any) {
@@ -286,7 +310,13 @@ export class MI2DebugSession extends DebugSession {
 			};
 			for (const thread of threads) {
 				const threadName = thread.name || thread.targetId || "<unnamed>";
-				response.body.threads.push(new Thread(thread.id, thread.id + ":" + threadName));
+
+				if (this.threadGroupPids.size > 1) {
+					let pid = this.threadToPid.get(thread.id);
+					response.body.threads.push(new Thread(thread.id, `(${pid}) ${thread.id}:${threadName}`));
+				} else {
+					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
+				}
 			}
 			this.sendResponse(response);
 		}).catch((error: MIError) => {
@@ -672,6 +702,7 @@ export class MI2DebugSession extends DebugSession {
 
 	protected override reverseContinueRequest(response: DebugProtocol.ReverseContinueResponse, args: DebugProtocol.ReverseContinueArguments): void {
 		this.miDebugger.continue(true).then(done => {
+			response.body.allThreadsContinued = true;
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
@@ -680,6 +711,7 @@ export class MI2DebugSession extends DebugSession {
 
 	protected override continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
 		this.miDebugger.continue().then(done => {
+			response.body.allThreadsContinued = true;
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
