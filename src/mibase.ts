@@ -692,8 +692,8 @@ export class MI2DebugSession extends DebugSession {
 		}
 	}
 
-	protected override pauseRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
-		this.miDebugger.interrupt().then(done => {
+	protected override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
+		this.miDebugger.interrupt(args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 3, `Could not pause: ${msg}`);
@@ -701,8 +701,12 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected override reverseContinueRequest(response: DebugProtocol.ReverseContinueResponse, args: DebugProtocol.ReverseContinueArguments): void {
-		this.miDebugger.continue(true).then(done => {
-			response.body.allThreadsContinued = true;
+		this.miDebugger.continue(true, args.threadId).then(done => {
+			if (!response.hasOwnProperty("body")) {
+				response.body = Object();
+			}
+
+			response.body.allThreadsContinued = false;
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
@@ -710,8 +714,13 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected override continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
-		this.miDebugger.continue().then(done => {
-			response.body.allThreadsContinued = true;
+		this.miDebugger.continue(false, args.threadId).then(done => {
+			if (!response.hasOwnProperty("body")) {
+				response.body = Object();
+			}
+
+			response.body.allThreadsContinued = false;
+
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
@@ -726,7 +735,7 @@ export class MI2DebugSession extends DebugSession {
 		});
 	}
 
-	protected override stepInRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
+	protected override stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
 		this.miDebugger.step().then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -734,7 +743,7 @@ export class MI2DebugSession extends DebugSession {
 		});
 	}
 
-	protected override stepOutRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
+	protected override stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
 		this.miDebugger.stepOut().then(done => {
 			this.sendResponse(response);
 		}, msg => {

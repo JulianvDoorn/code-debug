@@ -250,7 +250,7 @@ export class MI2 extends EventEmitter implements IBackend {
 			target = debuggerPath.join(cwd, target);
 
 		const cmds = [
-			this.sendCommand("gdb-set target-async on", true),
+			this.sendCommand("gdb-set mi-async on", true),
 			new Promise(resolve => {
 				this.sendCommand("list-features").then(done => {
 					this.features = done.result("features");
@@ -560,21 +560,21 @@ export class MI2 extends EventEmitter implements IBackend {
 		this.sendRaw("-target-detach");
 	}
 
-	interrupt(all: boolean = true): Thenable<boolean> {
+	interrupt(threadId?: number): Thenable<boolean> {
 		if (trace)
-			this.log("stderr", "interrupt");
+			this.log("stderr", "interrupt" + (threadId ? " --thread-group i" + threadId : ""));
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-interrupt" + (all ? " --all" : "")).then((info) => {
+			this.sendCommand("exec-interrupt" + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "done");
 			}, reject);
 		});
 	}
 
-	continue(reverse: boolean = false, all: boolean = true): Thenable<boolean> {
+	continue(reverse: boolean = false, threadId?: number): Thenable<boolean> {
 		if (trace)
-			this.log("stderr", "continue");
+			this.log("stderr", "continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : ""));
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "") + (all ? " --all" : "")).then((info) => {
+			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});

@@ -64,8 +64,8 @@ export interface IBackend {
 	start(runToStart: boolean): Thenable<boolean>;
 	stop(): void;
 	detach(): void;
-	interrupt(all: boolean): Thenable<boolean>;
-	continue(): Thenable<boolean>;
+	interrupt(threadId?: number): Thenable<boolean>;
+	continue(reverse?: boolean, threadId?: number): Thenable<boolean>;
 	next(): Thenable<boolean>;
 	step(): Thenable<boolean>;
 	stepOut(): Thenable<boolean>;
