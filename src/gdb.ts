@@ -45,7 +45,7 @@ export interface AttachRequestArguments extends DebugProtocol.AttachRequestArgum
 	registerLimit: string;
 }
 
-class GDBDebugSession extends MI2DebugSession {
+export class GDBDebugSession extends MI2DebugSession {
 	protected override initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
 		response.body.supportsGotoTargetsRequest = true;
 		response.body.supportsHitConditionalBreakpoints = true;
