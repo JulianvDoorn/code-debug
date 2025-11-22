@@ -424,11 +424,13 @@ export class MI2DebugSession extends DebugSession {
 		});
 	}
 
-	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
-		this.miDebugger.log("stdout", `Received superior thread request for ${this.sessionPid}`);
-
+	public inferiorThreadsRequest(response: DebugProtocol.ThreadsResponse,
+		sessionPid: string,
+		cb_good: (res: DebugProtocol.ThreadsResponse) => any,
+		cb_bad: (res: DebugProtocol.ThreadsResponse, codeOrMessage: number, err: string) => any
+	): void {
 		if (!this.miDebugger) {
-			this.sendResponse(response);
+			cb_good(response);
 			return;
 		}
 		this.miDebugger.getThreads().then(threads => {
@@ -440,20 +442,30 @@ export class MI2DebugSession extends DebugSession {
 
 				let pid = this.threadToPid.get(thread.id);
 
-				this.miDebugger.log("stdout", `pid == this.sessionPid (${pid} == ${this.sessionPid})`)
+				this.miDebugger.log("stdout", `pid == this.sessionPid (${pid} == ${sessionPid})`)
 
-				if (pid == this.sessionPid) {
+				if (pid == sessionPid) {
 					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
 				}
 			}
-			this.sendResponse(response);
+			cb_good(response);
 		}).catch((error: MIError) => {
 			if (error.message === 'Selected thread is running.') {
-				this.sendResponse(response);
+				cb_good(response);
 				return;
 			}
-			this.sendErrorResponse(response, 17, `Could not get threads: ${error}`);
+			cb_bad(response, 17, `Could not get threads: ${error}`);
 		});
+	}
+
+	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
+		this.miDebugger.log("stdout", `Received superior thread request for ${this.sessionPid}`);
+		this.inferiorThreadsRequest(
+			response,
+			this.sessionPid,
+			(r: DebugProtocol.ThreadsResponse) => this.sendResponse(r),
+			(r: DebugProtocol.ThreadsResponse, c: number, e: string) => this.sendErrorResponse(r, c, e)
+		)
 	}
 
 	// Supports 65535 threads.

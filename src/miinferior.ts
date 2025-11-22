@@ -67,36 +67,11 @@ export class MI2InferiorSession extends DebugSession {
 
 	protected override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
 		this.superiorSession.miDebugger.log("stdout", `Received inferior thread request for ${this.sessionPid}`);
-
-		if (!this.superiorSession.miDebugger) {
-			this.sendResponse(response);
-			return;
-		}
-		this.superiorSession.miDebugger.getThreads().then(threads => {
-			response.body = {
-				threads: []
-			};
-			for (const thread of threads) {
-				const threadName = thread.name || thread.targetId || "<unnamed>";
-
-				
-				let pid = this.superiorSession.threadToPid.get(thread.id);
-
-
-				if (pid == this.sessionPid) {
-					this.superiorSession.miDebugger.log("stdout", `Found thead via inferior ${threadName}`)
-					this.superiorSession.miDebugger.log("stdout", `pid == this.sessionPid (${pid} == ${this.sessionPid})`)
-					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
-				}
-			}
-			this.sendResponse(response);
-		}).catch((error: MIError) => {
-			if (error.message === 'Selected thread is running.') {
-				this.sendResponse(response);
-				return;
-			}
-			this.sendErrorResponse(response, 17, `Could not get threads: ${error}`);
-		});
+		this.superiorSession.inferiorThreadsRequest(response,
+			this.sessionPid,
+			(r: DebugProtocol.ThreadsResponse) => this.sendResponse(r),
+			(r: DebugProtocol.ThreadsResponse, c: number, e: string) => this.sendErrorResponse(r, c, e)
+		)
 	}
 
 	protected override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
