@@ -46,8 +46,10 @@ export class MI2DebugSession extends DebugSession {
 	public miDebugger: MI2;
 	protected commandServer: net.Server;
 	protected serverPath: string;
+	protected sessionPid: string | undefined = undefined;
 	protected threadGroupPids = new Map<string, string>();
-	protected threadToPid = new Map<number, string>();
+	public threadToPid = new Map<number, string>();
+	protected mi2Inferiors = new Array();
 	protected inferiorServers = new Array();
 
 	public constructor(debuggerLinesStartAt1: boolean, isServer: boolean = false) {
@@ -144,30 +146,72 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected handleBreakpoint(info: MINode) {
+		let threadId = info.record("thread-id");
+
+		this.miDebugger.log("stdout", `Got theadid ${threadId}`);
+
+		let threadPid = this.threadToPid.get(parseInt(info.record("thread-id"), 10));
+
 		const event = new StoppedEvent("breakpoint", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
-		this.sendEvent(event);
+
+		this.miDebugger.log("stdout", `Handling breakpoint for threadPid == this.sessionPid (${threadPid} == ${this.sessionPid})`)
+
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected handleBreak(info?: MINode) {
+		let threadPid = this.threadToPid.get(parseInt(info.record("thread-id"), 10));
+
 		const event = new StoppedEvent("step", info ? parseInt(info.record("thread-id")) : 1);
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info ? info.record("stopped-threads") === "all" : true;
-		this.sendEvent(event);
+
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected handlePause(info: MINode) {
+		let threadPid = this.threadToPid.get(parseInt(info.record("thread-id"), 10));
+
 		const event = new StoppedEvent("user request", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
-		this.sendEvent(event);
+
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected stopEvent(info: MINode) {
 		if (!this.started)
 			this.crashed = true;
 		if (!this.quit) {
+			let threadPid = this.threadToPid.get(parseInt(info.record("thread-id"), 10));
+
 			const event = new StoppedEvent("exception", parseInt(info.record("thread-id")));
 			(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
-			this.sendEvent(event);
+
+			if (threadPid == this.sessionPid) {
+				this.sendEvent(event);
+			} else {
+				this.mi2Inferiors.forEach(inferior => {
+					if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+				});
+			}
 		}
 	}
 
@@ -177,15 +221,28 @@ export class MI2DebugSession extends DebugSession {
 		let threadPid = this.threadGroupPids.get(info.record("group-id"));
 		this.threadToPid.set(threadId, threadPid);
 
-		this.sendEvent(new ThreadEvent("started", threadId));
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(new ThreadEvent("started", threadId));
+		} else {
+			this.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("started", threadId));
+			});
+		}
 	}
 
 	protected threadExitedEvent(info: MINode) {
 		let threadId = parseInt(info.record("id"), 10);
 
+		let threadPid = this.threadGroupPids.get(info.record("group-id"));
 		this.threadToPid.delete(info.record("group-id"));
 
-		this.sendEvent(new ThreadEvent("exited", threadId));
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(new ThreadEvent("exited", threadId));
+		} else {
+			this.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("exited", threadId));
+			});
+		}
 	}
 
 	private openInferiorDebugServer(superiorServer: MI2DebugSession) {
@@ -205,6 +262,8 @@ export class MI2DebugSession extends DebugSession {
 			const session = new MI2InferiorSession(superiorServer);
 			session.setRunAsServer(true);
 			session.start(socket, socket);
+
+			this.mi2Inferiors.push(session);
 		}).listen(port);
 
 		this.inferiorServers.push(server);
@@ -213,7 +272,12 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected threadGroupStartedEvent(info: MINode) {
-		let pid = parseInt(info.record("pid"), 10);
+		let pid = info.record("pid");
+
+		if (typeof this.sessionPid === "undefined") {
+			this.miDebugger.log("stdout", `Updated this.sessionPid to ${pid}`)
+			this.sessionPid = pid;
+		}
 
 		this.miDebugger.log("stdout", "threadGroupStartedEvent")
 		this.miDebugger.log("stdout", pid.toString())
@@ -240,6 +304,17 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	protected threadGroupExitedEvent(info: MINode) {
+		let pid = this.threadGroupPids.get(info.record("id"));
+
+		if (pid == this.sessionPid) {
+			this.miDebugger.log("stdout", "this.sesionPid = undefind");
+			// Session has no thread group anymore. Next started thread group will be debugged by this session
+			this.sessionPid = undefined;
+		}
+
+		this.miDebugger.log("stdout", "threadGroupExitedEvent");
+		this.miDebugger.log("stdout", pid);
+
 		this.threadGroupPids.delete(info.record("id"));
 	}
 
@@ -350,6 +425,8 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
+		this.miDebugger.log("stdout", `Received superior thread request for ${this.sessionPid}`);
+
 		if (!this.miDebugger) {
 			this.sendResponse(response);
 			return;
@@ -361,10 +438,11 @@ export class MI2DebugSession extends DebugSession {
 			for (const thread of threads) {
 				const threadName = thread.name || thread.targetId || "<unnamed>";
 
-				if (this.threadGroupPids.size > 1) {
-					let pid = this.threadToPid.get(thread.id);
-					response.body.threads.push(new Thread(thread.id, `(${pid}) ${thread.id}:${threadName}`));
-				} else {
+				let pid = this.threadToPid.get(thread.id);
+
+				this.miDebugger.log("stdout", `pid == this.sessionPid (${pid} == ${this.sessionPid})`)
+
+				if (pid == this.sessionPid) {
 					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
 				}
 			}
@@ -386,7 +464,9 @@ export class MI2DebugSession extends DebugSession {
 		return [frameId & 0xffff, frameId >> 16];
 	}
 
-	public override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
+	public inferiorStackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments,
+		cb_good: (res: DebugProtocol.StackTraceResponse) => any,
+		cb_bad: (res: DebugProtocol.StackTraceResponse, codeOrMessage: number, err: string) => any) {
 		this.miDebugger.getStack(args.startFrame, args.levels, args.threadId).then(stack => {
 			const ret: StackFrame[] = [];
 			stack.forEach(element => {
@@ -414,10 +494,17 @@ export class MI2DebugSession extends DebugSession {
 			response.body = {
 				stackFrames: ret
 			};
-			this.sendResponse(response);
+			cb_good(response);
 		}, err => {
-			this.sendErrorResponse(response, 12, `Failed to get Stack Trace: ${err.toString()}`);
+			cb_bad(response, 12, `Failed to get Stack Trace: ${err.toString()}`);
 		});
+	}
+
+	public override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
+		this.inferiorStackTraceRequest(response, args,
+			(r: DebugProtocol.StackTraceResponse) => this.sendResponse(r),
+			(r: DebugProtocol.StackTraceResponse, c: number, e: string) => this.sendErrorResponse(r, c, e)
+		)
 	}
 
 	public override configurationDoneRequest(response: DebugProtocol.ConfigurationDoneResponse, args: DebugProtocol.ConfigurationDoneArguments): void {
