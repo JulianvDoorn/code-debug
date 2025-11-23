@@ -562,9 +562,9 @@ export class MI2 extends EventEmitter implements IBackend {
 
 	interrupt(threadId?: number): Thenable<boolean> {
 		if (trace)
-			this.log("stderr", "interrupt" + (threadId ? " --thread-group i" + threadId : ""));
+			this.log("stderr", "interrupt" + (threadId ? " --thread " + threadId : ""));
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-interrupt" + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
+			this.sendCommand("exec-interrupt" + (threadId ? " --thread " + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "done");
 			}, reject);
 		});
@@ -572,9 +572,9 @@ export class MI2 extends EventEmitter implements IBackend {
 
 	continue(reverse: boolean = false, threadId?: number): Thenable<boolean> {
 		if (trace)
-			this.log("stderr", "continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : ""));
+			this.log("stderr", "continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread " + threadId : ""));
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
+			this.sendCommand("exec-continue" + (reverse ? " --reverse" : "") + (threadId ? " --thread " + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});
@@ -584,7 +584,7 @@ export class MI2 extends EventEmitter implements IBackend {
 		if (trace)
 			this.log("stderr", "next");
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-next" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
+			this.sendCommand("exec-next" + (reverse ? " --reverse" : "") + (threadId ? " --thread " + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});
@@ -594,7 +594,7 @@ export class MI2 extends EventEmitter implements IBackend {
 		if (trace)
 			this.log("stderr", "step");
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-step" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
+			this.sendCommand("exec-step" + (reverse ? " --reverse" : "") + (threadId ? " --thread " + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});
@@ -604,7 +604,7 @@ export class MI2 extends EventEmitter implements IBackend {
 		if (trace)
 			this.log("stderr", "stepOut");
 		return new Promise((resolve, reject) => {
-			this.sendCommand("exec-finish" + (reverse ? " --reverse" : "") + (threadId ? " --thread-group i" + threadId : "")).then((info) => {
+			this.sendCommand("exec-finish" + (reverse ? " --reverse" : "") + (threadId ? " --thread " + threadId : "")).then((info) => {
 				resolve(info.resultRecords.resultClass === "running");
 			}, reject);
 		});
