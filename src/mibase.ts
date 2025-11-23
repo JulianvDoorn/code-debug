@@ -1,6 +1,6 @@
 import * as DebugAdapter from 'vscode-debugadapter';
 import * as Net from 'net';
-import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, ThreadEvent, OutputEvent, ContinuedEvent, Thread, StackFrame, Scope, Source, Handles, ExitedEvent } from 'vscode-debugadapter';
+import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, ThreadEvent, OutputEvent, ContinuedEvent, Thread, StackFrame, Scope, Source, Handles, ExitedEvent, Event } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { Breakpoint, IBackend, Variable, VariableObject, ValuesFormattingMode, MIError } from './backend/backend';
 import { MINode } from './backend/mi_parse';
@@ -141,19 +141,23 @@ export class MI2DebugSession extends MI2InferiorSession {
 		this.sendEvent(new OutputEvent(msg, type));
 	}
 
+	protected sendEventToDebugSession(pid: string, event: Event) {
+		if (pid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (pid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
+	}
+
 	protected handleBreakpoint(info: MINode) {
 		let threadPid = this.shared.threadToPid.get(parseInt(info.record("thread-id"), 10));
 
 		const event = new StoppedEvent("breakpoint", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-		if (threadPid == this.sessionPid) {
-			this.sendEvent(event);
-		} else {
-			this.shared.mi2Inferiors.forEach(inferior => {
-				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
-			});
-		}
+		this.sendEventToDebugSession(threadPid, event);
 	}
 
 	protected handleBreak(info?: MINode) {
@@ -162,13 +166,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		const event = new StoppedEvent("step", info ? parseInt(info.record("thread-id")) : 1);
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info ? info.record("stopped-threads") === "all" : true;
 
-		if (threadPid == this.sessionPid) {
-			this.sendEvent(event);
-		} else {
-			this.shared.mi2Inferiors.forEach(inferior => {
-				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
-			});
-		}
+		this.sendEventToDebugSession(threadPid, event);
 	}
 
 	protected handlePause(info: MINode) {
@@ -177,13 +175,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		const event = new StoppedEvent("user request", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-		if (threadPid == this.sessionPid) {
-			this.sendEvent(event);
-		} else {
-			this.shared.mi2Inferiors.forEach(inferior => {
-				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
-			});
-		}
+		this.sendEventToDebugSession(threadPid, event);
 	}
 
 	protected stopEvent(info: MINode) {
@@ -195,13 +187,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 			const event = new StoppedEvent("exception", parseInt(info.record("thread-id")));
 			(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-			if (threadPid == this.sessionPid) {
-				this.sendEvent(event);
-			} else {
-				this.shared.mi2Inferiors.forEach(inferior => {
-					if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
-				});
-			}
+			this.sendEventToDebugSession(threadPid, event);
 		}
 	}
 
@@ -211,13 +197,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		let threadPid = this.shared.threadGroupPids.get(info.record("group-id"));
 		this.shared.threadToPid.set(threadId, threadPid);
 
-		if (threadPid == this.sessionPid) {
-			this.sendEvent(new ThreadEvent("started", threadId));
-		} else {
-			this.shared.mi2Inferiors.forEach(inferior => {
-				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("started", threadId));
-			});
-		}
+		this.sendEventToDebugSession(threadPid, new ThreadEvent("started", threadId));
 	}
 
 	protected threadExitedEvent(info: MINode) {
@@ -226,13 +206,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		let threadPid = this.shared.threadGroupPids.get(info.record("group-id"));
 		this.shared.threadToPid.delete(info.record("group-id"));
 
-		if (threadPid == this.sessionPid) {
-			this.sendEvent(new ThreadEvent("exited", threadId));
-		} else {
-			this.shared.mi2Inferiors.forEach(inferior => {
-				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("exited", threadId));
-			});
-		}
+		this.sendEventToDebugSession(threadPid, new ThreadEvent("exited", threadId));
 	}
 
 	private openInferiorDebugServer(superiorServer: MI2DebugSession) {
