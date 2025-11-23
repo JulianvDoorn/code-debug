@@ -236,14 +236,6 @@ export class MI2DebugSession extends MI2InferiorSession {
 	}
 
 	private openInferiorDebugServer(superiorServer: MI2DebugSession) {
-		function randomIntFromInterval(min: number, max: number) { // min and max included 
-		return Math.floor(Math.random() * (max - min + 1) + min);
-		}
-
-		const port = 1337 + randomIntFromInterval(1, 1000);
-
-		console.error(`waiting for debug protocol on port ${port}`);
-
 		const server = Net.createServer((socket) => {
 			console.error('>> accepted connection from client');
 			socket.on('end', () => {
@@ -254,7 +246,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 			session.start(socket, socket);
 
 			this.shared.mi2Inferiors.push(session);
-		}).listen(port);
+		}).listen();
 
 		this.shared.inferiorServers.push(server);
 		
