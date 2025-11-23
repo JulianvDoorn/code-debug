@@ -44,13 +44,13 @@ export class SharedState {
 }
 
 export class MI2DebugSession extends MI2InferiorSession {
-	protected initialRunCommand: RunCommand;
-	protected commandServer: net.Server;
-	protected serverPath: string;
-
 	public constructor(shared: SharedState, debuggerLinesStartAt1?: boolean, isServer?: boolean) {
 		super(shared, debuggerLinesStartAt1, isServer);
 	}
+
+	protected initialRunCommand: RunCommand;
+	protected commandServer: net.Server;
+	protected serverPath: string;
 
 	protected initDebugger() {
 		this.shared.miDebugger.on("launcherror", this.launchError.bind(this));

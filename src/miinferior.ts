@@ -12,19 +12,18 @@ export interface InferiorAttachRequestArguments extends DebugProtocol.AttachRequ
 }
 
 export class MI2InferiorSession extends DebugSession {
-	sessionPid: string | undefined;
+	constructor(shared: SharedState, debuggerLinesStartAt1?: boolean, isServer?: boolean) {
+		super(debuggerLinesStartAt1, isServer);
+		this.shared = shared;
+	}
 
+	protected sessionPid: string | undefined;
 	protected useVarObjects: boolean;
 	protected quit: boolean;
 	protected attached: boolean;
 	protected started: boolean;
 	protected crashed: boolean;
 	protected shared: SharedState;
-
-	constructor(shared: SharedState, debuggerLinesStartAt1?: boolean, isServer?: boolean) {
-		super(debuggerLinesStartAt1, isServer);
-		this.shared = shared;
-	}
 
 	protected override initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
 		// Same capabilities as GDBDebugSession
