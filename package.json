@@ -632,24 +632,6 @@
 					"FileBasenameNoExt": "code-debug.getFileBasenameNoExt",
 					"FileNameNoExt": "code-debug.getFileNameNoExt"
 				},
-				"configurationAttributes": {
-					"attach": {
-						"required": [
-							"port"
-						],
-						"properties": {
-							"port": {
-								"type": "number",
-								"description": ""
-							},
-							"registerLimit": {
-								"type": "string",
-								"description": "List of numbers specifying the registers to display. An empty string indicates that the contents of all the registers must be returned.",
-								"default": ""
-							}
-						}
-					}
-				},
 				"initialConfigurations": [ ],
 				"configurationSnippets": [ ]
 			},
