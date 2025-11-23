@@ -71,13 +71,9 @@ export class MI2InferiorSession extends DebugSession {
 		}
 	}
 
-	public inferiorThreadsRequest(response: DebugProtocol.ThreadsResponse,
-		sessionPid: string,
-		cb_good: (res: DebugProtocol.ThreadsResponse) => any,
-		cb_bad: (res: DebugProtocol.ThreadsResponse, codeOrMessage: number, err: string) => any
-	): void {
+	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
 		if (!this.shared.miDebugger) {
-			cb_good(response);
+			this.sendResponse(response);
 			return;
 		}
 		this.shared.miDebugger.getThreads().then(threads => {
@@ -89,27 +85,18 @@ export class MI2InferiorSession extends DebugSession {
 
 				let pid = this.shared.threadToPid.get(thread.id);
 
-				if (pid == sessionPid) {
+				if (pid == this.sessionPid) {
 					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
 				}
 			}
-			cb_good(response);
+			this.sendResponse(response);
 		}).catch((error: MIError) => {
 			if (error.message === 'Selected thread is running.') {
-				cb_good(response);
+				this.sendResponse(response);
 				return;
 			}
-			cb_bad(response, 17, `Could not get threads: ${error}`);
+			this.sendErrorResponse(response, 17, `Could not get threads: ${error}`);
 		});
-	}
-
-	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
-		this.inferiorThreadsRequest(
-			response,
-			this.sessionPid,
-			(r: DebugProtocol.ThreadsResponse) => this.sendResponse(r),
-			(r: DebugProtocol.ThreadsResponse, c: number, e: string) => this.sendErrorResponse(r, c, e)
-		)
 	}
 
 	// Supports 65535 threads.
@@ -120,9 +107,7 @@ export class MI2InferiorSession extends DebugSession {
 		return [frameId & 0xffff, frameId >> 16];
 	}
 
-	public inferiorStackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments,
-		cb_good: (res: DebugProtocol.StackTraceResponse) => any,
-		cb_bad: (res: DebugProtocol.StackTraceResponse, codeOrMessage: number, err: string) => any) {
+	public override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
 		this.shared.miDebugger.getStack(args.startFrame, args.levels, args.threadId).then(stack => {
 			const ret: StackFrame[] = [];
 			stack.forEach(element => {
@@ -150,23 +135,13 @@ export class MI2InferiorSession extends DebugSession {
 			response.body = {
 				stackFrames: ret
 			};
-			cb_good(response);
+			this.sendResponse(response);
 		}, err => {
-			cb_bad(response, 12, `Failed to get Stack Trace: ${err.toString()}`);
+			this.sendErrorResponse(response, 12, `Failed to get Stack Trace: ${err.toString()}`);
 		});
 	}
 
-	public override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
-		this.inferiorStackTraceRequest(response, args,
-			(r: DebugProtocol.StackTraceResponse) => this.sendResponse(r),
-			(r: DebugProtocol.StackTraceResponse, c: number, e: string) => this.sendErrorResponse(r, c, e)
-		)
-	}
-
-
-	public inferiorScopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments,
-		cb_good: (r: DebugProtocol.Response) => void
-	) {
+	public override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
 		const scopes = new Array<Scope>();
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 
@@ -190,17 +165,10 @@ export class MI2InferiorSession extends DebugSession {
 		response.body = {
 			scopes: scopes
 		};
-		cb_good(response);
+		this.sendResponse(response);
 	}
 
-	public override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
-		this.inferiorScopesRequest(response, args, (r: DebugProtocol.Response) => this.sendResponse(r))
-	}
-
-	public async inferiorVariablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments,
-		cb_good: (r: DebugProtocol.Response) => void,
-		cb_bad: (r: DebugProtocol.Response, n: number, m: string) => void
-	) {
+	public override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
 		const variables: DebugProtocol.Variable[] = [];
 		const id: VariableScope | string | VariableObject | ExtendedVariable = this.shared.variableHandles.get(args.variablesReference);
 
@@ -296,9 +264,9 @@ export class MI2InferiorSession extends DebugSession {
 				response.body = {
 					variables: variables
 				};
-				cb_good(response);
+				this.sendResponse(response);
 			} catch (err) {
-				cb_bad(response, 1, `Could not expand variable: ${err}`);
+				this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
 			}
 		} else if (typeof id === "string") {
 			// Variable members
@@ -329,13 +297,13 @@ export class MI2InferiorSession extends DebugSession {
 						response.body = {
 							variables: expanded
 						};
-						cb_good(response);
+						this.sendResponse(response);
 					}
 				} catch (e) {
-					cb_bad(response, 2, `Could not expand variable: ${e}`);
+					this.sendErrorResponse(response, 2, `Could not expand variable: ${e}`);
 				}
 			} catch (err) {
-				cb_bad(response, 1, `Could not expand variable: ${err}`);
+				this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
 			}
 		} else if (typeof id === "object") {
 			if (id instanceof VariableObject) {
@@ -352,9 +320,9 @@ export class MI2InferiorSession extends DebugSession {
 					response.body = {
 						variables: vars
 					};
-					cb_good(response);
+					this.sendResponse(response);
 				} catch (err) {
-					cb_bad(response, 1, `Could not expand variable: ${err}`);
+					this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
 				}
 			} else if (id instanceof ExtendedVariable) {
 				const varReq = id;
@@ -366,7 +334,7 @@ export class MI2InferiorSession extends DebugSession {
 						response.body = {
 							variables: strArr
 						};
-						cb_good(response);
+						this.sendResponse(response);
 					};
 					const addOne = async () => {
 						// TODO: this evaluates on an (effectively) unknown thread for multithreaded programs.
@@ -406,31 +374,24 @@ export class MI2InferiorSession extends DebugSession {
 								}
 							}
 						} catch (e) {
-							cb_bad(response, 14, `Could not expand variable: ${e}`);
+							this.sendErrorResponse(response, 14, `Could not expand variable: ${e}`);
 						}
 					};
 					addOne();
 				} else
-					cb_bad(response, 13, `Unimplemented variable request options: ${JSON.stringify(varReq.options)}`);
+					this.sendErrorResponse(response, 13, `Unimplemented variable request options: ${JSON.stringify(varReq.options)}`);
 			} else {
 				response.body = {
 					variables: id
 				};
-				cb_good(response);
+				this.sendResponse(response);
 			}
 		} else {
 			response.body = {
 				variables: variables
 			};
-			cb_good(response);
+			this.sendResponse(response);
 		}
-	}
-
-	public override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
-		return this.inferiorVariablesRequest(response, args, 
-			(r: DebugProtocol.VariablesResponse) => this.sendResponse(r),
-			(r: DebugProtocol.VariablesResponse, n: number, m: string) => this.sendErrorResponse(r, n, m)
-		)
 	}
 
 	public override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
@@ -499,10 +460,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public inferiorEvaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments,
-		cb_good: (r: DebugProtocol.Response) => void,
-		cb_bad: (r: DebugProtocol.Response, n: number, s: string) => void
-	): void {
+	public override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 		if (args.context === "watch" || args.context === "hover") {
 			this.shared.miDebugger.evalExpression(args.expression, threadId, level).then((res) => {
@@ -510,13 +468,13 @@ export class MI2InferiorSession extends DebugSession {
 					variablesReference: 0,
 					result: res.result("value")
 				};
-				cb_good(response);
+				this.sendResponse(response);
 			}, msg => {
 				if (args.context === "hover") {
 					// suppress error for hover as the user may just play with the mouse
-					cb_good(response);
+					this.sendResponse(response);
 				} else {
-					cb_bad(response, 7, msg.toString());
+					this.sendErrorResponse(response, 7, msg.toString());
 				}
 			});
 		} else {
@@ -531,24 +489,14 @@ export class MI2InferiorSession extends DebugSession {
 						result: JSON.stringify(output),
 						variablesReference: 0
 					};
-				cb_good(response);
+				this.sendResponse(response);
 			}, msg => {
-				cb_bad(response, 8, msg.toString());
+				this.sendErrorResponse(response, 8, msg.toString());
 			});
 		}
 	}
 
-	public override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
-		this.inferiorEvaluateRequest(response, args,
-			(r: DebugProtocol.Response) => this.sendResponse(r),
-			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
-		)
-	}
-
-	public inferiorGotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments,
-		cb_good: (r: DebugProtocol.Response) => void,
-		cb_bad: (r: DebugProtocol.Response, n: number, s: string) => void
-	): void {
+	public override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
 		const path: string = this.shared.isSSH ? this.shared.sourceFileMap.toRemotePath(args.source.path) : args.source.path;
 		this.shared.miDebugger.goto(path, args.line).then(done => {
 			response.body = {
@@ -559,18 +507,10 @@ export class MI2InferiorSession extends DebugSession {
 					line: args.line
 				}]
 			};
-			cb_good(response);
+			this.sendResponse(response);
 		}, msg => {
-			cb_bad(response, 16, `Could not jump: ${msg}`);
+			this.sendErrorResponse(response, 16, `Could not jump: ${msg}`);
 		});
-	}
-
-	public override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
-		this.inferiorGotoTargetsRequest(
-			response, args,
-			(r: DebugProtocol.Response) => this.sendResponse(r),
-			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
-		);
 	}
 
 	public override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
