@@ -285,7 +285,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 			this.sendRequest('startDebugging', {
 				request: "attach",
 				configuration: {
-					type: "gdb-inferior",
+					type: "mi-inferior",
 					target: info.record("pid"),
 					name: "Child session",
 					cwd: "${workspaceRoot}",
