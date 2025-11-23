@@ -472,6 +472,7 @@ export class MI2 extends EventEmitter implements IBackend {
 												this.emit("exited-normally", parsed);
 												break;
 											case "exited": // exit with error code != 0
+												this.log("stderr", "Program exited with code " + parsed.record("exit-code"));
 												this.emit("exited-normally", parsed);
 												break;
 												// case "exited-signalled":	// consider handling that explicit possible
