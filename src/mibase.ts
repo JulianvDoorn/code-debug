@@ -264,6 +264,10 @@ export class MI2DebugSession extends MI2InferiorSession {
 	}
 
 	protected threadGroupStartedEvent(info: MINode) {
+		if (!this.shared.miDebugger.multiProcess) {
+			return;
+		}
+
 		let pid = info.record("pid");
 
 		if (typeof this.sessionPid === "undefined") {
@@ -305,6 +309,10 @@ export class MI2DebugSession extends MI2InferiorSession {
 	}
 
 	protected threadGroupExitedEvent(info: MINode) {
+		if (!this.shared.miDebugger.multiProcess) {
+			return;
+		}
+
 		let pid = this.shared.threadGroupPids.get(info.record("id"));
 		let exit_code = info.record("exit-code");
 
