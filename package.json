@@ -20,7 +20,8 @@
 	"activationEvents": [
 		"onCommand:code-debug.examineMemoryLocation",
 		"onCommand:code-debug.getFileNameNoExt",
-		"onCommand:code-debug.getFileBasenameNoExt"
+		"onCommand:code-debug.getFileBasenameNoExt",
+		"onDebug"
 	],
 	"categories": [
 		"Debuggers"
@@ -598,6 +599,59 @@
 						"valuesFormatting": "parseText"
 					}
 				]
+			},
+			{
+				"type": "mi-inferior",
+				"program": "./out/src/miinferior.js",
+				"runtime": "node",
+				"label": "GDB",
+				"languages": [
+					"c",
+					"cpp",
+					"d",
+					"objective-c",
+					"fortran",
+					"fortran-modern",
+					"fortran90",
+					"fortran_free-form",
+					"fortran_fixed-form",
+					"rust",
+					"pascal",
+					"objectpascal",
+					"ada",
+					"nim",
+					"arm",
+					"asm",
+					"vala",
+					"crystal",
+					"kotlin",
+					"zig",
+					"riscv"
+				],
+				"variables": {
+					"FileBasenameNoExt": "code-debug.getFileBasenameNoExt",
+					"FileNameNoExt": "code-debug.getFileNameNoExt"
+				},
+				"configurationAttributes": {
+					"attach": {
+						"required": [
+							"port"
+						],
+						"properties": {
+							"port": {
+								"type": "number",
+								"description": ""
+							},
+							"registerLimit": {
+								"type": "string",
+								"description": "List of numbers specifying the registers to display. An empty string indicates that the contents of all the registers must be returned.",
+								"default": ""
+							}
+						}
+					}
+				},
+				"initialConfigurations": [ ],
+				"configurationSnippets": [ ]
 			},
 			{
 				"type": "lldb-mi",
