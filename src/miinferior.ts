@@ -39,11 +39,11 @@ export class MI2InferiorSession extends DebugSession {
 		this.sendResponse(response);
 	}
 
-	public override disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
+	protected override disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
 		this.sendResponse(response);
 	}
 
-	public override async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments): Promise<void> {
+	protected override async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments): Promise<void> {
 		try {
 			if (this.useVarObjects) {
 				let name = args.name;
@@ -70,7 +70,7 @@ export class MI2InferiorSession extends DebugSession {
 		}
 	}
 
-	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
+	protected override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
 		if (!this.shared.miDebugger) {
 			this.sendResponse(response);
 			return;
@@ -106,7 +106,7 @@ export class MI2InferiorSession extends DebugSession {
 		return [frameId & 0xffff, frameId >> 16];
 	}
 
-	public override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
+	protected override stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
 		this.shared.miDebugger.getStack(args.startFrame, args.levels, args.threadId).then(stack => {
 			const ret: StackFrame[] = [];
 			stack.forEach(element => {
@@ -140,7 +140,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
+	protected override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
 		const scopes = new Array<Scope>();
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 
@@ -167,7 +167,7 @@ export class MI2InferiorSession extends DebugSession {
 		this.sendResponse(response);
 	}
 
-	public override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
+	protected override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
 		const variables: DebugProtocol.Variable[] = [];
 		const id: VariableScope | string | VariableObject | ExtendedVariable = this.shared.variableHandles.get(args.variablesReference);
 
@@ -393,7 +393,7 @@ export class MI2InferiorSession extends DebugSession {
 		}
 	}
 
-	public override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
+	protected override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
 		this.shared.miDebugger.interrupt(args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -401,7 +401,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override reverseContinueRequest(response: DebugProtocol.ReverseContinueResponse, args: DebugProtocol.ReverseContinueArguments): void {
+	protected override reverseContinueRequest(response: DebugProtocol.ReverseContinueResponse, args: DebugProtocol.ReverseContinueArguments): void {
 		this.shared.miDebugger.continue(true, args.threadId).then(done => {
 			if (!response.hasOwnProperty("body")) {
 				response.body = Object();
@@ -427,7 +427,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override stepBackRequest(response: DebugProtocol.StepBackResponse, args: DebugProtocol.StepBackArguments): void {
+	protected override stepBackRequest(response: DebugProtocol.StepBackResponse, args: DebugProtocol.StepBackArguments): void {
 		this.shared.miDebugger.step(true, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -435,7 +435,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
+	protected override stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
 		this.shared.miDebugger.step(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -443,7 +443,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
+	protected override stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
 		this.shared.miDebugger.stepOut(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -451,7 +451,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
+	protected override nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
 		this.shared.miDebugger.next(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
@@ -459,7 +459,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
+	protected override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 		if (args.context === "watch" || args.context === "hover") {
 			this.shared.miDebugger.evalExpression(args.expression, threadId, level).then((res) => {
@@ -495,7 +495,7 @@ export class MI2InferiorSession extends DebugSession {
 		}
 	}
 
-	public override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
+	protected override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
 		const path: string = this.shared.isSSH ? this.shared.sourceFileMap.toRemotePath(args.source.path) : args.source.path;
 		this.shared.miDebugger.goto(path, args.line).then(done => {
 			response.body = {
@@ -512,7 +512,7 @@ export class MI2InferiorSession extends DebugSession {
 		});
 	}
 
-	public override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
+	protected override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
 		this.sendResponse(response);
 	}
 }

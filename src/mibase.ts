@@ -342,7 +342,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		this.quitEvent();
 	}
 
-	public override disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
+	protected override disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
 		if (this.attached)
 			this.shared.miDebugger.detach();
 		else
@@ -352,7 +352,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		this.sendResponse(response);
 	}
 
-	public override setFunctionBreakPointsRequest(response: DebugProtocol.SetFunctionBreakpointsResponse, args: DebugProtocol.SetFunctionBreakpointsArguments): void {
+	protected override setFunctionBreakPointsRequest(response: DebugProtocol.SetFunctionBreakpointsResponse, args: DebugProtocol.SetFunctionBreakpointsArguments): void {
 		const all: Thenable<[boolean, Breakpoint]>[] = [];
 		args.breakpoints.forEach(brk => {
 			all.push(this.shared.miDebugger.addBreakPoint({ raw: brk.name, condition: brk.condition, countCondition: brk.hitCondition }));
@@ -372,7 +372,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		});
 	}
 
-	public override setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
+	protected override setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
 		let path = args.source.path;
 		if (this.shared.isSSH) {
 			// convert local path to ssh path
@@ -402,7 +402,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		});
 	}
 
-	public override configurationDoneRequest(response: DebugProtocol.ConfigurationDoneResponse, args: DebugProtocol.ConfigurationDoneArguments): void {
+	protected override configurationDoneRequest(response: DebugProtocol.ConfigurationDoneResponse, args: DebugProtocol.ConfigurationDoneArguments): void {
 		const promises: Thenable<any>[] = [];
 		let entryPoint: string | undefined = undefined;
 		let runToStart: boolean = false;
