@@ -90,61 +90,108 @@ export class MI2InferiorSession extends DebugSession {
 
 	protected override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `scopes request via inferior ${this.sessionPid}`);
-		this.superiorSession.scopesRequest(response, args);
+		this.superiorSession.inferiorScopesRequest(response, args, (r: DebugProtocol.Response) => this.sendResponse(r))
 	}
 
 	protected override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
 		this.superiorSession.miDebugger.log("stdout", `variables request via inferior ${this.sessionPid}`);
-		this.superiorSession.variablesRequest(response, args);
+		this.superiorSession.inferiorVariablesRequest(response, args,
+			(r: DebugProtocol.Response) => this.sendResponse(r),
+			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
+		);
 	}
 
 	protected override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `pause request via inferior ${this.sessionPid}`);
-		this.superiorSession.pauseRequest(response, args);
+		this.superiorSession.miDebugger.interrupt(args.threadId).then(done => {
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 3, `Could not pause: ${msg}`);
+		});
 	}
 
 	protected override reverseContinueRequest(response: DebugProtocol.ReverseContinueResponse, args: DebugProtocol.ReverseContinueArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `reverse continue request via inferior ${this.sessionPid}`);
-		this.superiorSession.reverseContinueRequest(response, args);
+		this.superiorSession.miDebugger.continue(true, args.threadId).then(done => {
+			if (!response.hasOwnProperty("body")) {
+				response.body = Object();
+			}
+
+			response.body.allThreadsContinued = false;
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
+		});
 	}
 
 	protected override continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `continue request via inferior ${this.sessionPid}`);
-		this.superiorSession.continueRequest(response, args);
+		this.superiorSession.miDebugger.continue(false, args.threadId).then(done => {
+			if (!response.hasOwnProperty("body")) {
+				response.body = Object();
+			}
+
+			response.body.allThreadsContinued = false;
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
+		});
 	}
 
 	protected override stepBackRequest(response: DebugProtocol.StepBackResponse, args: DebugProtocol.StepBackArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `step back request via inferior ${this.sessionPid}`);
-		this.superiorSession.stepBackRequest(response, args);
+		this.superiorSession.miDebugger.step(true, args.threadId).then(done => {
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 4, `Could not step back: ${msg} - Try running 'target record-full' before stepping back`);
+		});
 	}
 
 	protected override stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `step in request via inferior ${this.sessionPid}`);
-		this.superiorSession.stepInRequest(response, args);
+		this.superiorSession.miDebugger.step(false, args.threadId).then(done => {
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 4, `Could not step in: ${msg}`);
+		});
 	}
 
 	protected override stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `step out request via inferior ${this.sessionPid}`);
-		this.superiorSession.stepOutRequest(response, args);
+		this.superiorSession.miDebugger.stepOut(false, args.threadId).then(done => {
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 5, `Could not step out: ${msg}`);
+		});
 	}
 
 	protected override nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `next request via inferior ${this.sessionPid}`);
-		this.superiorSession.nextRequest(response, args);
+		this.superiorSession.miDebugger.next(false, args.threadId).then(done => {
+			this.sendResponse(response);
+		}, msg => {
+			this.sendErrorResponse(response, 6, `Could not step over: ${msg}`);
+		});
 	}
 
 	protected override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `evaluate request via inferior ${this.sessionPid}`);
-		this.superiorSession.evaluateRequest(response, args);
+		this.superiorSession.inferiorEvaluateRequest(response, args,
+			(r: DebugProtocol.Response) => this.sendResponse(r),
+			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
+		);
 	}
 
 	protected override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `goto targets request via inferior ${this.sessionPid}`);
-		this.superiorSession.gotoTargetsRequest(response, args);
+		this.superiorSession.inferiorGotoTargetsRequest(response, args,
+			(r: DebugProtocol.Response) => this.sendResponse(r),
+			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
+		);
 	}
 
 	protected override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
 		this.superiorSession.miDebugger.log("stdout", `goto request via inferior ${this.sessionPid}`);
-		this.superiorSession.gotoRequest(response, args);
+		this.sendResponse(response);
 	}
 }

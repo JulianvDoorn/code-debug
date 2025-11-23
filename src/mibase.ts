@@ -296,6 +296,7 @@ export class MI2DebugSession extends DebugSession {
 				configuration: {
 					type: "gdb-inferior",
 					target: info.record("pid"),
+					name: "Child session",
 					cwd: "${workspaceRoot}",
 					debugServer: serverAddress
 				}
@@ -588,7 +589,9 @@ export class MI2DebugSession extends DebugSession {
 		});
 	}
 
-	public override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
+	public inferiorScopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments,
+		cb_good: (r: DebugProtocol.Response) => void
+	) {
 		const scopes = new Array<Scope>();
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 
@@ -612,10 +615,17 @@ export class MI2DebugSession extends DebugSession {
 		response.body = {
 			scopes: scopes
 		};
-		this.sendResponse(response);
+		cb_good(response);
 	}
 
-	public override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
+	public override scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
+		this.inferiorScopesRequest(response, args, (r: DebugProtocol.Response) => this.sendResponse(r))
+	}
+
+	public async inferiorVariablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments,
+		cb_good: (r: DebugProtocol.Response) => void,
+		cb_bad: (r: DebugProtocol.Response, n: number, m: string) => void
+	) {
 		const variables: DebugProtocol.Variable[] = [];
 		const id: VariableScope | string | VariableObject | ExtendedVariable = this.variableHandles.get(args.variablesReference);
 
@@ -711,9 +721,9 @@ export class MI2DebugSession extends DebugSession {
 				response.body = {
 					variables: variables
 				};
-				this.sendResponse(response);
+				cb_good(response);
 			} catch (err) {
-				this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
+				cb_bad(response, 1, `Could not expand variable: ${err}`);
 			}
 		} else if (typeof id === "string") {
 			// Variable members
@@ -744,13 +754,13 @@ export class MI2DebugSession extends DebugSession {
 						response.body = {
 							variables: expanded
 						};
-						this.sendResponse(response);
+						cb_good(response);
 					}
 				} catch (e) {
-					this.sendErrorResponse(response, 2, `Could not expand variable: ${e}`);
+					cb_bad(response, 2, `Could not expand variable: ${e}`);
 				}
 			} catch (err) {
-				this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
+				cb_bad(response, 1, `Could not expand variable: ${err}`);
 			}
 		} else if (typeof id === "object") {
 			if (id instanceof VariableObject) {
@@ -767,9 +777,9 @@ export class MI2DebugSession extends DebugSession {
 					response.body = {
 						variables: vars
 					};
-					this.sendResponse(response);
+					cb_good(response);
 				} catch (err) {
-					this.sendErrorResponse(response, 1, `Could not expand variable: ${err}`);
+					cb_bad(response, 1, `Could not expand variable: ${err}`);
 				}
 			} else if (id instanceof ExtendedVariable) {
 				const varReq = id;
@@ -781,7 +791,7 @@ export class MI2DebugSession extends DebugSession {
 						response.body = {
 							variables: strArr
 						};
-						this.sendResponse(response);
+						cb_good(response);
 					};
 					const addOne = async () => {
 						// TODO: this evaluates on an (effectively) unknown thread for multithreaded programs.
@@ -821,24 +831,31 @@ export class MI2DebugSession extends DebugSession {
 								}
 							}
 						} catch (e) {
-							this.sendErrorResponse(response, 14, `Could not expand variable: ${e}`);
+							cb_bad(response, 14, `Could not expand variable: ${e}`);
 						}
 					};
 					addOne();
 				} else
-					this.sendErrorResponse(response, 13, `Unimplemented variable request options: ${JSON.stringify(varReq.options)}`);
+					cb_bad(response, 13, `Unimplemented variable request options: ${JSON.stringify(varReq.options)}`);
 			} else {
 				response.body = {
 					variables: id
 				};
-				this.sendResponse(response);
+				cb_good(response);
 			}
 		} else {
 			response.body = {
 				variables: variables
 			};
-			this.sendResponse(response);
+			cb_good(response);
 		}
+	}
+
+	public override async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
+		return this.inferiorVariablesRequest(response, args, 
+			(r: DebugProtocol.VariablesResponse) => this.sendResponse(r),
+			(r: DebugProtocol.VariablesResponse, n: number, m: string) => this.sendErrorResponse(r, n, m)
+		)
 	}
 
 	public override pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
@@ -869,7 +886,6 @@ export class MI2DebugSession extends DebugSession {
 			}
 
 			response.body.allThreadsContinued = false;
-
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 2, `Could not continue: ${msg}`);
@@ -908,7 +924,10 @@ export class MI2DebugSession extends DebugSession {
 		});
 	}
 
-	public override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
+	public inferiorEvaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments,
+		cb_good: (r: DebugProtocol.Response) => void,
+		cb_bad: (r: DebugProtocol.Response, n: number, s: string) => void
+	): void {
 		const [threadId, level] = this.frameIdToThreadAndLevel(args.frameId);
 		if (args.context === "watch" || args.context === "hover") {
 			this.miDebugger.evalExpression(args.expression, threadId, level).then((res) => {
@@ -916,13 +935,13 @@ export class MI2DebugSession extends DebugSession {
 					variablesReference: 0,
 					result: res.result("value")
 				};
-				this.sendResponse(response);
+				cb_good(response);
 			}, msg => {
 				if (args.context === "hover") {
 					// suppress error for hover as the user may just play with the mouse
-					this.sendResponse(response);
+					cb_good(response);
 				} else {
-					this.sendErrorResponse(response, 7, msg.toString());
+					cb_bad(response, 7, msg.toString());
 				}
 			});
 		} else {
@@ -937,35 +956,45 @@ export class MI2DebugSession extends DebugSession {
 						result: JSON.stringify(output),
 						variablesReference: 0
 					};
-				this.sendResponse(response);
+				cb_good(response);
 			}, msg => {
-				this.sendErrorResponse(response, 8, msg.toString());
+				cb_bad(response, 8, msg.toString());
 			});
 		}
 	}
 
-	public override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
+	public override evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
+		this.inferiorEvaluateRequest(response, args,
+			(r: DebugProtocol.Response) => this.sendResponse(r),
+			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
+		)
+	}
+	
+	public inferiorGotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments,
+		cb_good: (r: DebugProtocol.Response) => void,
+		cb_bad: (r: DebugProtocol.Response, n: number, s: string) => void
+	): void {
 		const path: string = this.isSSH ? this.sourceFileMap.toRemotePath(args.source.path) : args.source.path;
-		this.miDebugger.goto(path, args.line).then(done => {
-			response.body = {
-				targets: [{
-					id: 1,
-					label: args.source.name,
-					column: args.column,
-					line: args.line
-				}]
-			};
+			this.miDebugger.goto(path, args.line).then(done => {
+				response.body = {
+					targets: [{
+						id: 1,
+						label: args.source.name,
+						column: args.column,
+						line: args.line
+					}]
+				};
+				cb_good(response);
+			}, msg => {
+				cb_bad(response, 16, `Could not jump: ${msg}`);
+			});
+		}
+
+		public override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
 			this.sendResponse(response);
-		}, msg => {
-			this.sendErrorResponse(response, 16, `Could not jump: ${msg}`);
-		});
-	}
+		}
 
-	public override gotoRequest(response: DebugProtocol.GotoResponse, args: DebugProtocol.GotoArguments): void {
-		this.sendResponse(response);
-	}
-
-	protected setSourceFileMap(configMap: { [index: string]: string }, fallbackGDB: string, fallbackIDE: string): void {
+		protected setSourceFileMap(configMap: { [index: string]: string }, fallbackGDB: string, fallbackIDE: string): void {
 		if (configMap === undefined) {
 			this.sourceFileMap = new SourceFileMap({ [fallbackGDB]: fallbackIDE });
 		} else {
@@ -973,6 +1002,13 @@ export class MI2DebugSession extends DebugSession {
 		}
 	}
 
+	public override gotoTargetsRequest(response: DebugProtocol.GotoTargetsResponse, args: DebugProtocol.GotoTargetsArguments): void {
+		this.inferiorGotoTargetsRequest(
+			response, args,
+			(r: DebugProtocol.Response) => this.sendResponse(r),
+			(r: DebugProtocol.Response, n: number, s: string) => this.sendErrorResponse(r, n, s) 
+		);
+	}
 }
 
 function prettyStringArray(strings: any) {
