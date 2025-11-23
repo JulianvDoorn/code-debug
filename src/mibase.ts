@@ -142,8 +142,6 @@ export class MI2DebugSession extends MI2InferiorSession {
 	}
 
 	protected handleBreakpoint(info: MINode) {
-		let threadId = info.record("thread-id");
-
 		let threadPid = this.shared.threadToPid.get(parseInt(info.record("thread-id"), 10));
 
 		const event = new StoppedEvent("breakpoint", parseInt(info.record("thread-id")));
@@ -325,7 +323,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		this.shared.threadGroupPids.delete(info.record("id"));
 	}
 
-	protected quitEvent(info?: MINode) {
+	protected quitEvent() {
 		this.quit = true;
 		this.sendEvent(new ExitedEvent(0));
 
