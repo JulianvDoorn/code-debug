@@ -1,6 +1,6 @@
 import * as DebugAdapter from 'vscode-debugadapter';
 import * as Net from 'net';
-import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, ThreadEvent, OutputEvent, ContinuedEvent, Thread, StackFrame, Scope, Source, Handles } from 'vscode-debugadapter';
+import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, ThreadEvent, OutputEvent, ContinuedEvent, Thread, StackFrame, Scope, Source, Handles, ExitedEvent } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { Breakpoint, IBackend, Variable, VariableObject, ValuesFormattingMode, MIError } from './backend/backend';
 import { MINode } from './backend/mi_parse';
@@ -306,26 +306,26 @@ export class MI2DebugSession extends MI2InferiorSession {
 
 	protected threadGroupExitedEvent(info: MINode) {
 		let pid = this.shared.threadGroupPids.get(info.record("id"));
+		let exit_code = info.record("exit-code");
 
 		if (pid == this.sessionPid) {
 			// Session has no thread group anymore. Next started thread group will be debugged by this session
 			this.sessionPid = undefined;
+			this.sendEvent(new ExitedEvent(exit_code));
 		}
 
 		this.shared.threadGroupPids.delete(info.record("id"));
 	}
 
 	protected quitEvent(info?: MINode) {
-		if (this.shared.threadGroupPids.size == 0) {
-			this.quit = true;
-			this.sendEvent(new TerminatedEvent());
+		this.quit = true;
+		this.sendEvent(new ExitedEvent(0));
 
-			if (this.serverPath)
-				fs.unlink(this.serverPath, (err) => {
-				// eslint-disable-next-line no-console
-				console.error("Failed to unlink debug server");
-				});
-		}
+		if (this.serverPath)
+			fs.unlink(this.serverPath, (err) => {
+			// eslint-disable-next-line no-console
+			console.error("Failed to unlink debug server");
+			});
 	}
 
 	protected launchError(err: any) {
