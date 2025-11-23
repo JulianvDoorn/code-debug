@@ -1,4 +1,4 @@
-import { MI2DebugSession, RunCommand } from './mibase';
+import { MI2DebugSession, RunCommand, SharedState } from './mibase';
 import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent, Thread, StackFrame, Scope, Source, Handles } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { MI2, escape } from "./backend/mi2/mi2";
@@ -46,6 +46,10 @@ export interface AttachRequestArguments extends DebugProtocol.AttachRequestArgum
 }
 
 export class GDBDebugSession extends MI2DebugSession {
+	constructor(debuggerLinesStartAt1?: boolean, isServer?: boolean) {
+		super(new SharedState(), debuggerLinesStartAt1, isServer)
+	}
+
 	protected override initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
 		response.body.supportsGotoTargetsRequest = true;
 		response.body.supportsHitConditionalBreakpoints = true;
@@ -65,22 +69,22 @@ export class GDBDebugSession extends MI2DebugSession {
 			this.sendErrorResponse(response, 104, `Configured debugger ${dbgCommand} not found.`);
 			return;
 		}
-		this.miDebugger = new MI2(dbgCommand, ["-q", "--interpreter=mi2"], args.debugger_args, args.env);
+		this.shared.miDebugger = new MI2(dbgCommand, ["-q", "--interpreter=mi2"], args.debugger_args, args.env);
 		this.setPathSubstitutions(args.pathSubstitutions);
 		this.initDebugger();
 		this.quit = false;
 		this.attached = false;
 		this.initialRunCommand = RunCommand.RUN;
-		this.isSSH = false;
+		this.shared.isSSH = false;
 		this.started = false;
 		this.crashed = false;
 		this.setValuesFormattingMode(args.valuesFormatting);
-		this.miDebugger.frameFilters = !!args.frameFilters;
-		this.miDebugger.printCalls = !!args.printCalls;
-		this.miDebugger.multiProcess = !!args.multiProcess;
-		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
-		this.stopAtEntry = args.stopAtEntry;
-		this.miDebugger.registerLimit = args.registerLimit ?? "";
+		this.shared.miDebugger.frameFilters = !!args.frameFilters;
+		this.shared.miDebugger.printCalls = !!args.printCalls;
+		this.shared.miDebugger.multiProcess = !!args.multiProcess;
+		this.shared.miDebugger.debugOutput = !!args.showDevDebugOutput;
+		this.shared.stopAtEntry = args.stopAtEntry;
+		this.shared.miDebugger.registerLimit = args.registerLimit ?? "";
 		if (args.ssh !== undefined) {
 			if (args.ssh.forwardX11 === undefined)
 				args.ssh.forwardX11 = true;
@@ -92,15 +96,15 @@ export class GDBDebugSession extends MI2DebugSession {
 				args.ssh.x11host = "localhost";
 			if (args.ssh.remotex11screen === undefined)
 				args.ssh.remotex11screen = 0;
-			this.isSSH = true;
+			this.shared.isSSH = true;
 			this.setSourceFileMap(args.ssh.sourceFileMap, args.ssh.cwd, args.cwd);
-			this.miDebugger.ssh(args.ssh, args.ssh.cwd, args.target, args.arguments, args.terminal, false, args.autorun || []).then(() => {
+			this.shared.miDebugger.ssh(args.ssh, args.ssh.cwd, args.target, args.arguments, args.terminal, false, args.autorun || []).then(() => {
 				this.sendResponse(response);
 			}, err => {
 				this.sendErrorResponse(response, 105, `Failed to SSH: ${err.toString()}`);
 			});
 		} else {
-			this.miDebugger.load(args.cwd, args.target, args.arguments, args.terminal, args.autorun || []).then(() => {
+			this.shared.miDebugger.load(args.cwd, args.target, args.arguments, args.terminal, args.autorun || []).then(() => {
 				this.sendResponse(response);
 			}, err => {
 				this.sendErrorResponse(response, 103, `Failed to load MI Debugger: ${err.toString()}`);
@@ -114,20 +118,20 @@ export class GDBDebugSession extends MI2DebugSession {
 			this.sendErrorResponse(response, 104, `Configured debugger ${dbgCommand} not found.`);
 			return;
 		}
-		this.miDebugger = new MI2(dbgCommand, ["-q", "--interpreter=mi2"], args.debugger_args, args.env);
+		this.shared.miDebugger = new MI2(dbgCommand, ["-q", "--interpreter=mi2"], args.debugger_args, args.env);
 		this.setPathSubstitutions(args.pathSubstitutions);
 		this.initDebugger();
 		this.quit = false;
 		this.attached = !args.remote;
 		this.initialRunCommand = args.stopAtConnect ? RunCommand.NONE : RunCommand.CONTINUE;
-		this.isSSH = false;
+		this.shared.isSSH = false;
 		this.setValuesFormattingMode(args.valuesFormatting);
-		this.miDebugger.frameFilters = !!args.frameFilters;
-		this.miDebugger.printCalls = !!args.printCalls;
-		this.miDebugger.multiProcess = !!args.multiProcess;
-		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
-		this.stopAtEntry = args.stopAtEntry;
-		this.miDebugger.registerLimit = args.registerLimit ?? "";
+		this.shared.miDebugger.frameFilters = !!args.frameFilters;
+		this.shared.miDebugger.printCalls = !!args.printCalls;
+		this.shared.miDebugger.multiProcess = !!args.multiProcess;
+		this.shared.miDebugger.debugOutput = !!args.showDevDebugOutput;
+		this.shared.stopAtEntry = args.stopAtEntry;
+		this.shared.miDebugger.registerLimit = args.registerLimit ?? "";
 		if (args.ssh !== undefined) {
 			if (args.ssh.forwardX11 === undefined)
 				args.ssh.forwardX11 = true;
@@ -139,22 +143,22 @@ export class GDBDebugSession extends MI2DebugSession {
 				args.ssh.x11host = "localhost";
 			if (args.ssh.remotex11screen === undefined)
 				args.ssh.remotex11screen = 0;
-			this.isSSH = true;
+			this.shared.isSSH = true;
 			this.setSourceFileMap(args.ssh.sourceFileMap, args.ssh.cwd, args.cwd);
-			this.miDebugger.ssh(args.ssh, args.ssh.cwd, args.target, "", undefined, true, args.autorun || []).then(() => {
+			this.shared.miDebugger.ssh(args.ssh, args.ssh.cwd, args.target, "", undefined, true, args.autorun || []).then(() => {
 				this.sendResponse(response);
 			}, err => {
 				this.sendErrorResponse(response, 104, `Failed to SSH: ${err.toString()}`);
 			});
 		} else {
 			if (args.remote) {
-				this.miDebugger.connect(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
+				this.shared.miDebugger.connect(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
 					this.sendResponse(response);
 				}, err => {
 					this.sendErrorResponse(response, 102, `Failed to attach: ${err.toString()}`);
 				});
 			} else {
-				this.miDebugger.attach(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
+				this.shared.miDebugger.attach(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
 					this.sendResponse(response);
 				}, err => {
 					this.sendErrorResponse(response, 101, `Failed to attach: ${err.toString()}`);
@@ -167,7 +171,7 @@ export class GDBDebugSession extends MI2DebugSession {
 	protected setPathSubstitutions(substitutions: { [index: string]: string }): void {
 		if (substitutions) {
 			Object.keys(substitutions).forEach(source => {
-				this.miDebugger.extraCommands.push("gdb-set substitute-path \"" + escape(source) + "\" \"" + escape(substitutions[source]) + "\"");
+				this.shared.miDebugger.extraCommands.push("gdb-set substitute-path \"" + escape(source) + "\" \"" + escape(substitutions[source]) + "\"");
 			});
 		}
 	}

@@ -1,4 +1,4 @@
-import { MI2DebugSession, RunCommand } from './mibase';
+import { MI2DebugSession, RunCommand, SharedState } from './mibase';
 import { DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent, Thread, StackFrame, Scope, Source, Handles } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { MI2_Mago } from "./backend/mi2/mi2mago";
@@ -34,8 +34,8 @@ export interface AttachRequestArguments extends DebugProtocol.AttachRequestArgum
 }
 
 class MagoDebugSession extends MI2DebugSession {
-	public constructor(debuggerLinesStartAt1: boolean, isServer: boolean = false) {
-		super(debuggerLinesStartAt1, isServer);
+	constructor(debuggerLinesStartAt1?: boolean, isServer?: boolean) {
+		super(new SharedState(), debuggerLinesStartAt1, isServer)
 	}
 
 	protected override initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
@@ -57,19 +57,19 @@ class MagoDebugSession extends MI2DebugSession {
 			this.sendErrorResponse(response, 104, `Configured debugger ${dbgCommand} not found.`);
 			return;
 		}
-		this.miDebugger = new MI2_Mago(dbgCommand, ["-q"], args.debugger_args, args.env);
+		this.shared.miDebugger = new MI2_Mago(dbgCommand, ["-q"], args.debugger_args, args.env);
 		this.initDebugger();
 		this.quit = false;
 		this.attached = false;
 		this.initialRunCommand = RunCommand.RUN;
-		this.isSSH = false;
+		this.shared.isSSH = false;
 		this.started = false;
 		this.crashed = false;
 		this.setValuesFormattingMode(args.valuesFormatting);
-		this.miDebugger.printCalls = !!args.printCalls;
-		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
-		this.miDebugger.registerLimit = args.registerLimit ?? "";
-		this.miDebugger.load(args.cwd, args.target, args.arguments, undefined, args.autorun || []).then(() => {
+		this.shared.miDebugger.printCalls = !!args.printCalls;
+		this.shared.miDebugger.debugOutput = !!args.showDevDebugOutput;
+		this.shared.miDebugger.registerLimit = args.registerLimit ?? "";
+		this.shared.miDebugger.load(args.cwd, args.target, args.arguments, undefined, args.autorun || []).then(() => {
 			this.sendResponse(response);
 		}, err => {
 			this.sendErrorResponse(response, 109, `Failed to load MI Debugger: ${err.toString()}`);
@@ -82,17 +82,17 @@ class MagoDebugSession extends MI2DebugSession {
 			this.sendErrorResponse(response, 104, `Configured debugger ${dbgCommand} not found.`);
 			return;
 		}
-		this.miDebugger = new MI2_Mago(dbgCommand, ["-q"], args.debugger_args, args.env);
+		this.shared.miDebugger = new MI2_Mago(dbgCommand, ["-q"], args.debugger_args, args.env);
 		this.initDebugger();
 		this.quit = false;
 		this.attached = true;
 		this.initialRunCommand = args.stopAtConnect ? RunCommand.NONE : RunCommand.CONTINUE;
-		this.isSSH = false;
+		this.shared.isSSH = false;
 		this.setValuesFormattingMode(args.valuesFormatting);
-		this.miDebugger.printCalls = !!args.printCalls;
-		this.miDebugger.debugOutput = !!args.showDevDebugOutput;
-		this.miDebugger.registerLimit = args.registerLimit ?? "";
-		this.miDebugger.attach(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
+		this.shared.miDebugger.printCalls = !!args.printCalls;
+		this.shared.miDebugger.debugOutput = !!args.showDevDebugOutput;
+		this.shared.miDebugger.registerLimit = args.registerLimit ?? "";
+		this.shared.miDebugger.attach(args.cwd, args.executable, args.target, args.autorun || []).then(() => {
 			this.sendResponse(response);
 		}, err => {
 			this.sendErrorResponse(response, 110, `Failed to attach: ${err.toString()}`);
