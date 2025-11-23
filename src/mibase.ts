@@ -905,7 +905,7 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override stepBackRequest(response: DebugProtocol.StepBackResponse, args: DebugProtocol.StepBackArguments): void {
-		this.miDebugger.step(true).then(done => {
+		this.miDebugger.step(true, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 4, `Could not step back: ${msg} - Try running 'target record-full' before stepping back`);
@@ -913,7 +913,7 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
-		this.miDebugger.step().then(done => {
+		this.miDebugger.step(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 4, `Could not step in: ${msg}`);
@@ -921,7 +921,7 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
-		this.miDebugger.stepOut().then(done => {
+		this.miDebugger.stepOut(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 5, `Could not step out: ${msg}`);
@@ -929,7 +929,7 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
-		this.miDebugger.next().then(done => {
+		this.miDebugger.next(false, args.threadId).then(done => {
 			this.sendResponse(response);
 		}, msg => {
 			this.sendErrorResponse(response, 6, `Could not step over: ${msg}`);
