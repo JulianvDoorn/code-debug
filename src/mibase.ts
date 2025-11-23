@@ -291,7 +291,8 @@ export class MI2DebugSession extends DebugSession {
 			const server = this.openInferiorDebugServer(this);
 			const serverAddress = (server.address() as Net.AddressInfo).port;
 
-			this.startDebuggingRequest({
+			// Necessary until vscode-debugadapter-node supports `startDebuggingRequest`
+			this.sendRequest('startDebugging', {
 				request: "attach",
 				configuration: {
 					type: "gdb-inferior",
@@ -300,7 +301,18 @@ export class MI2DebugSession extends DebugSession {
 					cwd: "${workspaceRoot}",
 					debugServer: serverAddress
 				}
-			}, 1000, () => {})
+			}, 1000, () => {});
+
+			// this.startDebuggingRequest({
+			// 	request: "attach",
+			// 	configuration: {
+			// 		type: "gdb-inferior",
+			// 		target: info.record("pid"),
+			// 		name: "Child session",
+			// 		cwd: "${workspaceRoot}",
+			// 		debugServer: serverAddress
+			// 	}
+			// }, 1000, () => {})
 		}
 	}
 
