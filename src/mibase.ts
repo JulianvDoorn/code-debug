@@ -463,26 +463,6 @@ export class MI2DebugSession extends MI2InferiorSession {
 		});
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-
-
-
 	protected setSourceFileMap(configMap: { [index: string]: string }, fallbackGDB: string, fallbackIDE: string): void {
 		if (configMap === undefined) {
 			this.shared.sourceFileMap = new SourceFileMap({ [fallbackGDB]: fallbackIDE });
@@ -490,7 +470,5 @@ export class MI2DebugSession extends MI2InferiorSession {
 			this.shared.sourceFileMap = new SourceFileMap(configMap, fallbackGDB);
 		}
 	}
-
-
 }
 
