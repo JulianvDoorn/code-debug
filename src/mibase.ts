@@ -270,31 +270,22 @@ export class MI2DebugSession extends MI2InferiorSession {
 		// This makes the UI all fancy with subprocesses and threads etc.
 		if (this.shared.threadGroupPids.size > 1) {
 			// Open a new port for the new DebugSession to attach to
-			const server = this.openInferiorDebugServer(this);
-			const serverAddress = (server.address() as Net.AddressInfo).port;
+			const server = this.openInferiorDebugServer(this).on("listening", () => {
+				const serverAddress = (server.address() as Net.AddressInfo).port;
+				const pid = info.record("pid");
 
-			// Necessary until vscode-debugadapter-node supports `startDebuggingRequest`
-			this.sendRequest('startDebugging', {
-				request: "attach",
-				configuration: {
-					type: "mi-inferior",
-					target: info.record("pid"),
-					name: "Child session",
-					cwd: "${workspaceRoot}",
-					debugServer: serverAddress
-				}
-			}, 1000, () => {});
-
-			// this.startDebuggingRequest({
-			// 	request: "attach",
-			// 	configuration: {
-			// 		type: "gdb-inferior",
-			// 		target: info.record("pid"),
-			// 		name: "Child session",
-			// 		cwd: "${workspaceRoot}",
-			// 		debugServer: serverAddress
-			// 	}
-			// }, 1000, () => {})
+				// Necessary until vscode-debugadapter-node supports `startDebuggingRequest`
+				this.sendRequest('startDebugging', {
+					request: "attach",
+					configuration: {
+						type: "mi-inferior",
+						target: pid,
+						name: `Child (${pid})`,
+						cwd: "${workspaceRoot}",
+						debugServer: serverAddress
+					}
+				}, 1000, () => {});
+			})
 		}
 	}
 
