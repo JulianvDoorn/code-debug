@@ -148,14 +148,10 @@ export class MI2DebugSession extends DebugSession {
 	protected handleBreakpoint(info: MINode) {
 		let threadId = info.record("thread-id");
 
-		this.miDebugger.log("stdout", `Got theadid ${threadId}`);
-
 		let threadPid = this.threadToPid.get(parseInt(info.record("thread-id"), 10));
 
 		const event = new StoppedEvent("breakpoint", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
-
-		this.miDebugger.log("stdout", `Handling breakpoint for threadPid == this.sessionPid (${threadPid} == ${this.sessionPid})`)
 
 		if (threadPid == this.sessionPid) {
 			this.sendEvent(event);
@@ -275,12 +271,8 @@ export class MI2DebugSession extends DebugSession {
 		let pid = info.record("pid");
 
 		if (typeof this.sessionPid === "undefined") {
-			this.miDebugger.log("stdout", `Updated this.sessionPid to ${pid}`)
 			this.sessionPid = pid;
 		}
-
-		this.miDebugger.log("stdout", "threadGroupStartedEvent")
-		this.miDebugger.log("stdout", pid.toString())
 
 		this.threadGroupPids.set(info.record("id"), info.record("pid"));
 
@@ -320,13 +312,9 @@ export class MI2DebugSession extends DebugSession {
 		let pid = this.threadGroupPids.get(info.record("id"));
 
 		if (pid == this.sessionPid) {
-			this.miDebugger.log("stdout", "this.sesionPid = undefind");
 			// Session has no thread group anymore. Next started thread group will be debugged by this session
 			this.sessionPid = undefined;
 		}
-
-		this.miDebugger.log("stdout", "threadGroupExitedEvent");
-		this.miDebugger.log("stdout", pid);
 
 		this.threadGroupPids.delete(info.record("id"));
 	}
@@ -455,8 +443,6 @@ export class MI2DebugSession extends DebugSession {
 
 				let pid = this.threadToPid.get(thread.id);
 
-				this.miDebugger.log("stdout", `pid == this.sessionPid (${pid} == ${sessionPid})`)
-
 				if (pid == sessionPid) {
 					response.body.threads.push(new Thread(thread.id, `${thread.id}:${threadName}`));
 				}
@@ -472,7 +458,6 @@ export class MI2DebugSession extends DebugSession {
 	}
 
 	public override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
-		this.miDebugger.log("stdout", `Received superior thread request for ${this.sessionPid}`);
 		this.inferiorThreadsRequest(
 			response,
 			this.sessionPid,
