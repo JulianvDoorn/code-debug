@@ -54,8 +54,6 @@ export class MI2DebugSession extends MI2InferiorSession {
 
 	protected initDebugger() {
 		this.shared.miDebugger.on("launcherror", this.launchError.bind(this));
-		this.shared.miDebugger.on("quit", this.quitEvent.bind(this));
-		this.shared.miDebugger.on("exited-normally", this.quitEvent.bind(this));
 		this.shared.miDebugger.on("stopped", this.stopEvent.bind(this));
 		this.shared.miDebugger.on("msg", this.handleMsg.bind(this));
 		this.shared.miDebugger.on("breakpoint", this.handleBreakpoint.bind(this));
@@ -69,7 +67,7 @@ export class MI2DebugSession extends MI2InferiorSession {
 		this.shared.miDebugger.once("debug-ready", (() => this.sendEvent(new InitializedEvent())));
 		this.shared.miDebugger.on("thread-group-started", this.threadGroupStartedEvent.bind(this));
 		this.shared.miDebugger.on("thread-group-exited", this.threadGroupExitedEvent.bind(this));
-		this.sendEvent(new InitializedEvent());
+
 		try {
 			this.commandServer = net.createServer(c => {
 				c.on("data", data => {
@@ -157,7 +155,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 		const event = new StoppedEvent("breakpoint", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-		this.sendEventToDebugSession(threadPid, event);
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected handleBreak(info?: MINode) {
@@ -166,7 +170,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 		const event = new StoppedEvent("step", info ? parseInt(info.record("thread-id")) : 1);
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info ? info.record("stopped-threads") === "all" : true;
 
-		this.sendEventToDebugSession(threadPid, event);
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected handlePause(info: MINode) {
@@ -175,7 +185,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 		const event = new StoppedEvent("user request", parseInt(info.record("thread-id")));
 		(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-		this.sendEventToDebugSession(threadPid, event);
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(event);
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+			});
+		}
 	}
 
 	protected stopEvent(info: MINode) {
@@ -187,7 +203,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 			const event = new StoppedEvent("exception", parseInt(info.record("thread-id")));
 			(event as DebugProtocol.StoppedEvent).body.allThreadsStopped = info.record("stopped-threads") === "all";
 
-			this.sendEventToDebugSession(threadPid, event);
+			if (threadPid == this.sessionPid) {
+				this.sendEvent(event);
+			} else {
+				this.shared.mi2Inferiors.forEach(inferior => {
+					if (threadPid == inferior.sessionPid) inferior.sendEvent(event)
+				});
+			}
 		}
 	}
 
@@ -197,7 +219,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 		let threadPid = this.shared.threadGroupPids.get(info.record("group-id"));
 		this.shared.threadToPid.set(threadId, threadPid);
 
-		this.sendEventToDebugSession(threadPid, new ThreadEvent("started", threadId));
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(new ThreadEvent("started", threadId));
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("started", threadId));
+			});
+		}
 	}
 
 	protected threadExitedEvent(info: MINode) {
@@ -206,7 +234,13 @@ export class MI2DebugSession extends MI2InferiorSession {
 		let threadPid = this.shared.threadGroupPids.get(info.record("group-id"));
 		this.shared.threadToPid.delete(info.record("group-id"));
 
-		this.sendEventToDebugSession(threadPid, new ThreadEvent("exited", threadId));
+		if (threadPid == this.sessionPid) {
+			this.sendEvent(new ThreadEvent("exited", threadId));
+		} else {
+			this.shared.mi2Inferiors.forEach(inferior => {
+				if (threadPid == inferior.sessionPid) inferior.sendEvent(new ThreadEvent("exited", threadId));
+			});
+		}
 	}
 
 	private openInferiorDebugServer(superiorServer: MI2DebugSession) {
@@ -268,33 +302,38 @@ export class MI2DebugSession extends MI2InferiorSession {
 			return;
 		}
 
-		let pid = this.shared.threadGroupPids.get(info.record("id"));
-		let exit_code = info.record("exit-code");
+		const threadGroupid = info.record("id");
+		const pid = this.shared.threadGroupPids.get(threadGroupid);
+		const exit_code = info.record("exit-code");
 
-		if (pid == this.sessionPid) {
-			// Session has no thread group anymore. Next started thread group will be debugged by this session
-			this.sessionPid = undefined;
-			this.sendEvent(new ExitedEvent(exit_code));
+		// Only if the exit_code is defined, the process has exited.
+		// If exit_code is undefined it is still running (even if it has no threads).
+		// This happens, for instance, when ld-linux has finished dynamic loading.
+		if (typeof exit_code != "undefined") {
+			this.quitEvent(parseInt(pid, 10), parseInt(exit_code, 10))
 		}
 
 		this.shared.threadGroupPids.delete(info.record("id"));
 	}
 
-	protected quitEvent() {
+	protected quitEvent(pid: number, exit_code: number) {
 		this.quit = true;
-		this.sendEvent(new ExitedEvent(0));
 
-		if (this.serverPath)
+		this.sendEventToDebugSession(pid.toString(), new ExitedEvent(exit_code));
+		this.sendEventToDebugSession(pid.toString(), new TerminatedEvent(false));
+
+		if (this.serverPath) {
 			fs.unlink(this.serverPath, (err) => {
-			// eslint-disable-next-line no-console
-			console.error("Failed to unlink debug server");
+				// eslint-disable-next-line no-console
+				console.error("Failed to unlink debug server");
 			});
+		}
 	}
 
 	protected launchError(err: any) {
 		this.handleMsg("stderr", "Could not start debugger process, does the program exist in filesystem?\n");
 		this.handleMsg("stderr", err.toString() + "\n");
-		this.quitEvent();
+		this.sendEvent(new TerminatedEvent(false));
 	}
 
 	protected override disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
